@@ -10,8 +10,11 @@
 # datasets without the prompt add the "--no-prompt" arg to the command
 #
 from argparse import ArgumentParser
+from collections import deque
+from pprint import pprint
 
 import boto3
+import pglast
 from botocore.exceptions import ClientError
 
 
@@ -40,6 +43,45 @@ def _fetch_datasets(client, account_id, dataset_id=None):
         next_token = response.get("NextToken")
         if not next_token:
             break
+
+
+def _extract_tables_from_query(query):
+    statements = pglast.parse_sql(query)
+
+    if len(statements) == 0:
+        return []
+
+    tables = set()
+
+    node_ctenames = deque()
+    node_ctenames.append((statements[0](), ()))
+
+    while node_ctenames:
+        node, ctenames = node_ctenames.popleft()
+
+        if node.get("withClause", None) is not None:
+            if node["withClause"]["recursive"]:
+                ctenames += tuple((cte["ctename"] for cte in node["withClause"]["ctes"]))
+                for cte in node["withClause"]["ctes"]:
+                    node_ctenames.append((cte, ctenames))
+            else:
+                for cte in node["withClause"]["ctes"]:
+                    node_ctenames.append((cte, ctenames))
+                    ctenames += (cte["ctename"],)
+
+        if node.get("@", None) == "RangeVar" and (
+                node["schemaname"] is not None or node["relname"] not in ctenames
+        ):
+            tables.add((node["schemaname"] or "public", node["relname"]))
+
+        for node_type, node_value in node.items():
+            if node_type == "withClause":
+                continue
+            for nested_node in node_value if isinstance(node_value, tuple) else (node_value,):
+                if isinstance(nested_node, dict):
+                    node_ctenames.append((nested_node, ctenames))
+
+    return sorted(list(tables))
 
 
 def main():
@@ -100,7 +142,23 @@ def main():
                             ]
                         },
                     )
+
+            if "CustomSql" in physical_table:
+                sql_query = physical_table["CustomSql"]["SqlQuery"]
+                source_schema_tables = [
+                    (x[0], x[1]) for x in _extract_tables_from_query(sql_query)
+                    if x[0] == args.source_schema
+                ]
+                if source_schema_tables:
+                    print("---------------")
+                    print(f"Updating query for dataset \"{dataset['Name']}\"")
+                    pprint(source_schema_tables)
+                    parsed_query = pglast.parse_sql(sql_query)
+                    # TODO: Update the relevant source schemas
+                    print("---------------")
+
     print(f"Total: {count}")
+
 
 if __name__ == "__main__":
     main()

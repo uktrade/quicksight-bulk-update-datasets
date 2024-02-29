@@ -15,7 +15,11 @@ import boto3
 from botocore.exceptions import ClientError
 
 
-def _fetch_datasets(client, account_id):
+def _fetch_datasets(client, account_id, dataset_id=None):
+    if dataset_id is not None:
+        yield client.describe_data_set(AwsAccountId=account_id, DataSetId=dataset_id)["DataSet"]
+        return
+
     next_token = None
     while True:
         params = dict(AwsAccountId=account_id)
@@ -46,6 +50,7 @@ def main():
     parser.add_argument("-p", "--aws-profile", required=True, help="The profile to connect to AWS")
     parser.add_argument("-s", "--source-schema", required=True, help="The schema that will be renamed")
     parser.add_argument("-t", "--target-schema", required=True, help="The new name of the source schema")
+    parser.add_argument("-i", "--dataset-id", required=False, default=None, help="Run for the dataset with this ID only")
     parser.add_argument(
         "-d",
         "--dry-run",
@@ -62,7 +67,7 @@ def main():
 
     session = boto3.Session(profile_name=args.aws_profile)
     client = session.client("quicksight")
-    for dataset in _fetch_datasets(client, args.account_id):
+    for dataset in _fetch_datasets(client, args.account_id, dataset_id=args.dataset_id):
         physical_table_map = dataset.get("PhysicalTableMap", {})
         for physical_table in physical_table_map.values():
             if "RelationalTable" in physical_table:

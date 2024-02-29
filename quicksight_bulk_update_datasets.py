@@ -57,35 +57,44 @@ def rename_schema(
 
     count = 0
     for dataset in datasets():
-        physical_table_map = dataset.get("PhysicalTableMap", {})
-        for physical_table in physical_table_map.values():
-            if "RelationalTable" in physical_table:
+        dataset_changed = False
+
+        for physical_table in dataset.get("PhysicalTableMap", {}).values():
+            try:
                 table = physical_table["RelationalTable"]
-                if table["Schema"] == source_schema:
-                    count += 1
-                    print(
-                        ("DRY RUN: " if dry_run else "")
-                        + f"Renaming table {table['Schema']}.{table['Name']} to {target_schema}.{table['Name']} "
-                        + f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
-                    )
-                    if dry_run:
-                        continue
-                    if not no_prompt:
-                        input("Press enter to update the dataset on Quicksight")
-                    table["Schema"] = target_schema
-                    client.update_data_set(
-                        AwsAccountId=account_id,
-                        **{
-                            x: v
-                            for x, v in dataset.items()
-                            if x
-                            not in [
-                                "Arn",
-                                "CreatedTime",
-                                "LastUpdatedTime",
-                                "OutputColumns",
-                                "ConsumedSpiceCapacityInBytes",
-                            ]
-                        },
-                    )
+            except KeyError:
+                continue
+            if table["Schema"] != source_schema:
+                continue
+            dataset_changed = True
+            print(
+                ("DRY RUN: " if dry_run else "")
+                + f"Renaming table {table['Schema']}.{table['Name']} to {target_schema}.{table['Name']} "
+                + f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
+            )
+            table["Schema"] = target_schema
+
+        if not dataset_changed:
+            continue
+        count += 1
+        if dry_run:
+            continue
+        if not no_prompt:
+            input("Press enter to update the dataset on Quicksight")
+        client.update_data_set(
+            AwsAccountId=account_id,
+            **{
+                x: v
+                for x, v in dataset.items()
+                if x
+                not in [
+                    "Arn",
+                    "CreatedTime",
+                    "LastUpdatedTime",
+                    "OutputColumns",
+                    "ConsumedSpiceCapacityInBytes",
+                ]
+            },
+        )
+
     print(f"Total: {count}")

@@ -2,7 +2,7 @@
 # Update any Quicksight datasets with relational tables in the source schema to use the target schema.
 #
 # Run in dry run mode (Do this to test it)
-# python3 quicksight-bulk-update-datasets.py --account-id=<aws account id> --aws-profile=<aws profile name> --source-schema=<schema name> --target-schema=<schema name> --dry-run
+# quicksight-bulk-update-datasets --account-id=<aws account id> --aws-profile=<aws profile name> --source-schema=<schema name> --target-schema=<schema name> --dry-run
 #
 # To run for real remove the "--dry-run" argument from the above command
 #

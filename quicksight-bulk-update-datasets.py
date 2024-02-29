@@ -67,12 +67,14 @@ def main():
 
     session = boto3.Session(profile_name=args.aws_profile)
     client = session.client("quicksight")
+    count = 0
     for dataset in _fetch_datasets(client, args.account_id, dataset_id=args.dataset_id):
         physical_table_map = dataset.get("PhysicalTableMap", {})
         for physical_table in physical_table_map.values():
             if "RelationalTable" in physical_table:
                 table = physical_table["RelationalTable"]
                 if table["Schema"] == args.source_schema:
+                    count += 1
                     print(
                         ("DRY RUN: " if args.dry_run else "")
                         + f"Renaming table {table['Schema']}.{table['Name']} to {args.target_schema}.{table['Name']} "
@@ -98,7 +100,7 @@ def main():
                             ]
                         },
                     )
-
+    print(f"Total: {count}")
 
 if __name__ == "__main__":
     main()

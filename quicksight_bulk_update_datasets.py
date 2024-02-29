@@ -19,32 +19,6 @@ from botocore.exceptions import ClientError
 app = typer.Typer()
 
 
-def _fetch_datasets(client, account_id, dataset_id=None):
-    if dataset_id is not None:
-        yield client.describe_data_set(AwsAccountId=account_id, DataSetId=dataset_id)["DataSet"]
-        return
-
-    next_token = None
-    while True:
-        params = dict(AwsAccountId=account_id)
-        if next_token is not None:
-            params["NextToken"] = next_token
-        response = client.list_data_sets(**params)
-        for dataset in response.get("DataSetSummaries", []):
-            try:
-                yield client.describe_data_set(
-                    AwsAccountId=account_id, DataSetId=dataset["DataSetId"]
-                )["DataSet"]
-            except ClientError as ex:
-                print(
-                    f"Error fetching detail for dataset {dataset['Name']}: {ex.response['Error']['Message']}"
-                )
-                continue
-
-        next_token = response.get("NextToken")
-        if not next_token:
-            break
-
 @app.command()
 def rename_schema(
         account_id: Annotated[str, typer.Option("--account-id", "-a", help="The AWS account ID", show_default=False)],
@@ -61,8 +35,20 @@ def rename_schema(
 
     session = boto3.Session(profile_name=aws_profile)
     client = session.client("quicksight")
+
+    dataset_ids = (
+        dataset_summary['DataSetId']
+        for page in client.get_paginator("list_data_sets").paginate(AwsAccountId=account_id)
+        for dataset_summary in page.get("DataSetSummaries", [])
+    ) if dataset_id is None else (dataset_id,)
+
+    datasets = (
+        client.describe_data_set(AwsAccountId=account_id, DataSetId=dataset_id)["DataSet"]
+        for dataset_id in dataset_ids
+    )
+
     count = 0
-    for dataset in _fetch_datasets(client, account_id, dataset_id=dataset_id):
+    for dataset in datasets:
         physical_table_map = dataset.get("PhysicalTableMap", {})
         for physical_table in physical_table_map.values():
             if "RelationalTable" in physical_table:

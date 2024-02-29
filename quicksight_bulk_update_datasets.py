@@ -9,10 +9,14 @@
 # You will be prompted before each dataset is actually updated on Quicksight. To run it for all
 # datasets without the prompt add the "--no-prompt" arg to the command
 #
-from argparse import ArgumentParser
+from typing_extensions import Annotated
 
 import boto3
+import typer
 from botocore.exceptions import ClientError
+
+
+app = typer.Typer()
 
 
 def _fetch_datasets(client, account_id, dataset_id=None):
@@ -41,52 +45,43 @@ def _fetch_datasets(client, account_id, dataset_id=None):
         if not next_token:
             break
 
+@app.command()
+def rename_schema(
+        account_id: Annotated[str, typer.Option("--account-id", "-a", help="The AWS account ID")],
+        aws_profile: Annotated[str, typer.Option("--aws-profile", "-p", help="The profile to connect to AWS")],
+        source_schema: Annotated[str, typer.Option("--source-schema", "-s", help="The schema that will be renamed")],
+        target_schema: Annotated[str, typer.Option("--target-schema", "-t", help="The new name of the source schema")],
+        dataset_id: Annotated[str, typer.Option("--dataset-id", "-i", help="Run for the dataset with this ID only")] = None,
+        no_prompt: Annotated[bool, typer.Option("--no-prompt", "-n", help="Update all affected dataset without prompting the user")] = False,
+        dry_run: Annotated[bool, typer.Option("--dry-run", "-d", help="Do not apply changes to Quicksight")] = False,
+        
+):
+    """
+    Update datasets that refer to the source schema to use the target schema
+    """
 
-def main():
-    parser = ArgumentParser(
-        description="Migrate data sources using tables in the source schema to use the target schema",
-    )
-    parser.add_argument("-a", "--account-id", required=True, help="The AWS account ID")
-    parser.add_argument("-p", "--aws-profile", required=True, help="The profile to connect to AWS")
-    parser.add_argument("-s", "--source-schema", required=True, help="The schema that will be renamed")
-    parser.add_argument("-t", "--target-schema", required=True, help="The new name of the source schema")
-    parser.add_argument("-i", "--dataset-id", required=False, default=None, help="Run for the dataset with this ID only")
-    parser.add_argument(
-        "-d",
-        "--dry-run",
-        action="store_true",
-        help="Do not apply changes to Quicksight",
-    )
-    parser.add_argument(
-        "-n",
-        "--no-prompt",
-        action="store_true",
-        help="Update all affected dataset without prompting the user",
-    )
-    args = parser.parse_args()
-
-    session = boto3.Session(profile_name=args.aws_profile)
+    session = boto3.Session(profile_name=aws_profile)
     client = session.client("quicksight")
     count = 0
-    for dataset in _fetch_datasets(client, args.account_id, dataset_id=args.dataset_id):
+    for dataset in _fetch_datasets(client, account_id, dataset_id=dataset_id):
         physical_table_map = dataset.get("PhysicalTableMap", {})
         for physical_table in physical_table_map.values():
             if "RelationalTable" in physical_table:
                 table = physical_table["RelationalTable"]
-                if table["Schema"] == args.source_schema:
+                if table["Schema"] == source_schema:
                     count += 1
                     print(
-                        ("DRY RUN: " if args.dry_run else "")
-                        + f"Renaming table {table['Schema']}.{table['Name']} to {args.target_schema}.{table['Name']} "
+                        ("DRY RUN: " if dry_run else "")
+                        + f"Renaming table {table['Schema']}.{table['Name']} to {target_schema}.{table['Name']} "
                         + f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
                     )
-                    if args.dry_run:
+                    if dry_run:
                         continue
-                    if not args.no_prompt:
+                    if not no_prompt:
                         input("Press enter to update the dataset on Quicksight")
-                    table["Schema"] = args.target_schema
+                    table["Schema"] = target_schema
                     client.update_data_set(
-                        AwsAccountId=args.account_id,
+                        AwsAccountId=account_id,
                         **{
                             x: v
                             for x, v in dataset.items()
@@ -101,6 +96,3 @@ def main():
                         },
                     )
     print(f"Total: {count}")
-
-if __name__ == "__main__":
-    main()

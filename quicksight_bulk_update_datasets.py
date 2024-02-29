@@ -33,22 +33,30 @@ def rename_schema(
     Update datasets that refer to the source schema to use the target schema
     """
 
+    def datasets():
+        dataset_ids = (
+            dataset_summary['DataSetId']
+            for page in client.get_paginator("list_data_sets").paginate(AwsAccountId=account_id)
+            for dataset_summary in page.get("DataSetSummaries", [])
+        ) if dataset_id is None else (dataset_id,)
+
+        for _dataset_id in dataset_ids:
+            try:
+                response = client.describe_data_set(
+                    AwsAccountId=account_id, DataSetId=_dataset_id
+                )
+            except ClientError as ex:
+                # Some datasets cannot be described in the API, e.g. manual uploads
+                print(f"Error fetching detail for dataset {_dataset_id}: {ex.response['Error']['Message']}")
+                continue
+
+            yield response["DataSet"]
+
     session = boto3.Session(profile_name=aws_profile)
     client = session.client("quicksight")
 
-    dataset_ids = (
-        dataset_summary['DataSetId']
-        for page in client.get_paginator("list_data_sets").paginate(AwsAccountId=account_id)
-        for dataset_summary in page.get("DataSetSummaries", [])
-    ) if dataset_id is None else (dataset_id,)
-
-    datasets = (
-        client.describe_data_set(AwsAccountId=account_id, DataSetId=dataset_id)["DataSet"]
-        for dataset_id in dataset_ids
-    )
-
     count = 0
-    for dataset in datasets:
+    for dataset in datasets():
         physical_table_map = dataset.get("PhysicalTableMap", {})
         for physical_table in physical_table_map.values():
             if "RelationalTable" in physical_table:

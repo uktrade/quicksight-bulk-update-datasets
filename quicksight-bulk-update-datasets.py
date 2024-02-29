@@ -75,7 +75,8 @@ def main():
                 if table["Schema"] == args.source_schema:
                     print(
                         ("DRY RUN: " if args.dry_run else "")
-                        + f"Renaming table {table['Schema']}.{table['Name']} to {args.target_schema}.{table['Name']}"
+                        + f"Renaming table {table['Schema']}.{table['Name']} to {args.target_schema}.{table['Name']} "
+                        + f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
                     )
                     if args.dry_run:
                         continue

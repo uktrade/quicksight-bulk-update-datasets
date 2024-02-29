@@ -47,10 +47,10 @@ def _fetch_datasets(client, account_id, dataset_id=None):
 
 @app.command()
 def rename_schema(
-        account_id: Annotated[str, typer.Option("--account-id", "-a", help="The AWS account ID")],
-        aws_profile: Annotated[str, typer.Option("--aws-profile", "-p", help="The profile to connect to AWS")],
-        source_schema: Annotated[str, typer.Option("--source-schema", "-s", help="The schema that will be renamed")],
-        target_schema: Annotated[str, typer.Option("--target-schema", "-t", help="The new name of the source schema")],
+        account_id: Annotated[str, typer.Option("--account-id", "-a", help="The AWS account ID", show_default=False)],
+        aws_profile: Annotated[str, typer.Option("--aws-profile", "-p", help="The profile to connect to AWS", show_default=False)],
+        source_schema: Annotated[str, typer.Option("--source-schema", "-s", help="The schema that will be renamed", show_default=False)],
+        target_schema: Annotated[str, typer.Option("--target-schema", "-t", help="The new name of the source schema", show_default=False)],
         dataset_id: Annotated[str, typer.Option("--dataset-id", "-i", help="Run for the dataset with this ID only")] = None,
         no_prompt: Annotated[bool, typer.Option("--no-prompt", "-n", help="Update all affected dataset without prompting the user")] = False,
         dry_run: Annotated[bool, typer.Option("--dry-run", "-d", help="Do not apply changes to Quicksight")] = False,

@@ -18,7 +18,7 @@ pip install quicksight-bulk-update-datasets
 See the source in [quicksight_bulk_update_datasets.py](https://github.com/uktrade/quicksight-bulk-update-datasets/blob/main/quicksight_bulk_update_datasets.py), or after installation run
 
 ```shell
-quicksight-bulk-update-datasets
+quicksight-bulk-update-datasets --help
 ```
 
 to see some brief guidance.

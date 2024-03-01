@@ -11,9 +11,12 @@
 #
 import csv
 import datetime
+from collections import deque
 from typing_extensions import Annotated
 
 import boto3
+import pglast
+import pglast.stream
 import typer
 from botocore.exceptions import ClientError
 
@@ -54,6 +57,92 @@ def rename_schema(
 
             yield response["DataSet"]
 
+    def tables_from_query(query):
+        statements = pglast.parse_sql(query)
+
+        if len(statements) == 0:
+            return []
+
+        tables = set()
+
+        node_ctenames = deque()
+        node_ctenames.append((statements[0](), ()))
+
+        while node_ctenames:
+            node, ctenames = node_ctenames.popleft()
+
+            if node.get("withClause", None) is not None:
+                if node["withClause"]["recursive"]:
+                    ctenames += tuple((cte["ctename"] for cte in node["withClause"]["ctes"]))
+                    for cte in node["withClause"]["ctes"]:
+                        node_ctenames.append((cte, ctenames))
+                else:
+                    for cte in node["withClause"]["ctes"]:
+                        node_ctenames.append((cte, ctenames))
+                        ctenames += (cte["ctename"],)
+
+            if node.get("@", None) == "RangeVar" and (
+                    node["schemaname"] is not None or node["relname"] not in ctenames
+            ):
+                tables.add((node["schemaname"] or "public", node["relname"]))
+
+            for node_type, node_value in node.items():
+                if node_type == "withClause":
+                    continue
+                for nested_node in node_value if isinstance(node_value, tuple) else (node_value,):
+                    if isinstance(nested_node, dict):
+                        node_ctenames.append((nested_node, ctenames))
+
+        return sorted(list(tables))
+
+    def rename_schema(query, source, target):
+        # Strongly based on tables_from_query, but that is based on iterating over the "dict" form
+        # of the parsed query. But to re-serialize, we need the object form. Could probably be
+        # simplified to only use the object form
+        statements = pglast.parse_sql(query)
+
+        if len(statements) > 1:
+            raise Exception("Multiple statements are not supported")
+
+        if len(statements) == 0:
+            return []
+
+        node_ctenames = deque()
+        node_ctenames.append((statements[0], ()))
+
+        while node_ctenames:
+            node, ctenames = node_ctenames.popleft()
+            node_dict = node()
+
+            if node_dict.get("withClause", None) is not None:
+                if node_dict["withClause"]["recursive"]:
+                    ctenames += tuple((cte.ctename for cte in node.withClause.ctes))
+                    for cte in node.withClause.ctes:
+                        node_ctenames.append((cte, ctenames))
+                else:
+                    for cte in node.withClause.ctes:
+                        node_ctenames.append((cte, ctenames))
+                        ctenames += (cte.ctename,)
+
+            if node_dict.get("@", None) == "RangeVar" and (
+                node_dict["schemaname"] is not None or node_dict["relname"] not in ctenames
+            ):
+                if node.schemaname == source:
+                    node.schemaname = target
+
+            for node_type in node:
+                node_value = getattr(node, node_type)
+                if node_type == "withClause":
+                    continue
+                for nested_node in node_value if isinstance(node_value, tuple) else (node_value,):
+                    if isinstance(nested_node, pglast.ast.Node):
+                        node_ctenames.append((nested_node, ctenames))
+
+        return pglast.stream.IndentedStream(
+            comments=pglast._extract_comments(query),
+            comma_at_eoln=True,
+        )(statements[0])
+
     session = boto3.Session(profile_name=aws_profile)
     client = session.client("quicksight")
 
@@ -62,7 +151,7 @@ def rename_schema(
     count = 0
 
     with open(filename, 'w', newline='') as f:
-        fieldnames = ['dataset_id', 'physical_table_id', 'type', 'source', 'target']
+        fieldnames = ['dataset_id', 'dataset_link', 'physical_table_id', 'type', 'source', 'target']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -70,25 +159,51 @@ def rename_schema(
             dataset_changes = []
 
             for physical_table_id, physical_table in dataset.get("PhysicalTableMap", {}).items():
-                try:
+                dataset_link = f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
+                if "RelationalTable" in physical_table:
                     table = physical_table["RelationalTable"]
-                except KeyError:
-                    continue
-                if table["Schema"] != source_schema:
-                    continue
-                print(
-                    ("DRY RUN: " if dry_run else "")
-                    + f"Renaming table {table['Schema']}.{table['Name']} to {target_schema}.{table['Name']} "
-                    + f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
-                )
-                table["Schema"] = target_schema
-                dataset_changes.append({
-                    'dataset_id': dataset['DataSetId'],
-                    'physical_table_id': physical_table_id,
-                    'type': 'table',
-                    'source': source_schema,
-                    'target': target_schema,
-                })
+                    if table["Schema"] == source_schema:
+                        print(
+                            ("DRY RUN: " if dry_run else "")
+                            + f"Renaming table {table['Schema']}.{table['Name']} to {target_schema}.{table['Name']} "
+                            + dataset_link
+                        )
+                        table["Schema"] = target_schema
+                        dataset_changes.append({
+                            'dataset_id': dataset['DataSetId'],
+                            'dataset_link': dataset_link,
+                            'physical_table_id': physical_table_id,
+                            'type': 'table',
+                            'source': source_schema,
+                            'target': target_schema,
+                        })
+                if "CustomSql" in physical_table:
+                    original_sql = physical_table["CustomSql"]["SqlQuery"]
+                    tables = tables_from_query(physical_table["CustomSql"]["SqlQuery"])
+                    if any(schema == source_schema for schema, table in tables):
+                        renamed_sql = rename_schema(original_sql, source_schema, target_schema)
+                        new_tables = tables_from_query(renamed_sql)
+                        print(
+                            ("DRY RUN: " if dry_run else "")
+                            + f"Renaming tables {tables} to {new_tables} "
+                            + dataset_link
+                        )
+                        no_original = any(schema == source_schema for schema, table in new_tables) == False
+                        any_target = any(schema == target_schema for schema, table in new_tables) == True
+                        original_tables_to_be_unchanged = set((schema, table) for schema, table in tables if schema not in (source_schema, target_schema))
+                        new_tables_to_be_unchanged = set((schema, table) for schema, table in new_tables if schema not in (source_schema, target_schema))
+                        assert no_original
+                        assert any_target
+                        assert original_tables_to_be_unchanged == new_tables_to_be_unchanged
+                        physical_table["CustomSql"]["SqlQuery"] = renamed_sql
+                        dataset_changes.append({
+                            'dataset_id': dataset['DataSetId'],
+                            'dataset_link': dataset_link,
+                            'physical_table_id': physical_table_id,
+                            'type': 'sql',
+                            'source': original_sql,
+                            'target': rename_schema(original_sql, source_schema, target_schema),
+                        })
 
             if not dataset_changes:
                 continue

@@ -179,7 +179,12 @@ def rename_schema(
                         })
                 if "CustomSql" in physical_table:
                     original_sql = physical_table["CustomSql"]["SqlQuery"]
-                    tables = tables_from_query(physical_table["CustomSql"]["SqlQuery"])
+                    try:
+                        tables = tables_from_query(physical_table["CustomSql"]["SqlQuery"])
+                    except:
+                        print(f"Unable to parse query in {dataset['DataSetId']}")
+                        print(original_sql)
+                        continue
                     if any(schema == source_schema for schema, table in tables):
                         renamed_sql = rename_schema(original_sql, source_schema, target_schema)
                         new_tables = tables_from_query(renamed_sql)

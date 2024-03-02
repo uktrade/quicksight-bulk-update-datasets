@@ -157,7 +157,7 @@ def rename_schema(
 
     timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     filename = f"{timestamp}--{account_id}{'--dry-run' if dry_run else ''}.csv"
-    count = 0
+    updated = 0
 
     with \
             open(filename, 'w', newline='') as f, \
@@ -165,6 +165,7 @@ def rename_schema(
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 MofNCompleteColumn(),
+                '[bright_yellow]Updated: {task.fields[updated]}',
                 TimeRemainingColumn(),
             ) as progress:
 
@@ -172,7 +173,7 @@ def rename_schema(
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
 
-        task = progress.add_task(("[green]\\[DRY RUN][/green] " if dry_run else "") + 'Updating datasets...', total=len(dataset_ids))
+        task = progress.add_task(("[green]\\[DRY RUN][/green] " if dry_run else "") + 'Updating datasets...', total=len(dataset_ids), updated=0)
         for dataset in datasets(dataset_ids):
             dataset_changes = []
 
@@ -182,7 +183,7 @@ def rename_schema(
                     table = physical_table["RelationalTable"]
                     if table["Schema"] == source_schema:
                         progress.console.print(
-                            f"RelationalTable: {[(table['Schema'], table['Name'])]} to {[(target_schema, table['Name'])]} "
+                            f"RelationalTable: {[(table['Schema'], table['Name'])]} ➜ {[(target_schema, table['Name'])]} "
                         )
                         table["Schema"] = target_schema
                         dataset_changes.append({
@@ -206,7 +207,7 @@ def rename_schema(
                         renamed_sql = rename_schema(original_sql, source_schema, target_schema)
                         new_tables = tables_from_query(renamed_sql)
                         progress.console.print(
-                            f"CustomSql: {tables} to {new_tables} "
+                            f"CustomSql: {tables} ➜ {new_tables} "
                         )
                         no_original = any(schema == source_schema for schema, table in new_tables) == False
                         any_target = any(schema == target_schema for schema, table in new_tables) == True
@@ -228,11 +229,12 @@ def rename_schema(
             if not dataset_changes:
                 progress.advance(task)
                 continue
-            count += 1
+            updated += 1
             for dataset_change in dataset_changes:
                 writer.writerow(dataset_change)
             if dry_run:
                 progress.advance(task)
+                progress.update(task, updated=updated)
                 continue
             if not no_prompt:
                 input("Press enter to update the dataset on Quicksight")
@@ -252,5 +254,4 @@ def rename_schema(
                 },
             )
             progress.advance(task)
-
-    print(f"Total datasets changed: {count}")
+            progress.update(task, updated=updated)

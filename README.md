@@ -77,6 +77,12 @@ pip install -e .
 
 ## Releasing
 
-After merging to the main branch, create a release from the [Releases page](https://github.com/uktrade/quicksight-bulk-update-datasets/releases). The tag _must_ be the form "vX.Y.Z" where X.Y.Z is the new [SemVer 2.0 version](https://semver.org/). This will automatically run the [GitHub Actions workflow that releases to PyPI](./.github/workflows/deploy-package-to-pypi.yml).
+After merging to the main branch, create a release from the [Releases page](https://github.com/uktrade/quicksight-bulk-update-datasets/releases).
+
+- The tag _must_ be the form "vX.Y.Z" where X.Y.Z is the new [SemVer 2.0 version](https://semver.org/).
+- You should press "Generate release notes" to automatically bring in titles of PRs since the previous release.
+- If there are many PRs, you should include an introductory paragraph highlighting the main changes.
+
+Creating a GitHub release will automatically run the [GitHub Actions workflow that releases to PyPI](./.github/workflows/deploy-package-to-pypi.yml).
 
 Only members of the uktrade GitHub organisation may create releases.

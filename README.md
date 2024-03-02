@@ -13,27 +13,27 @@ pip install quicksight-bulk-update-datasets
 ```
 
 
-## Usage
+# Usage
 
-```bash
-quicksight-bulk-update-datasets [OPTIONS] ACCOUNT_ID AWS_PROFILE SOURCE_SCHEMA TARGET_SCHEMA
+```shell
+quicksight-bulk-update-datasets [OPTIONS] ACCOUNT_ID SOURCE_SCHEMA TARGET_SCHEMA
 ```
 
 **Arguments**:
 
 * `ACCOUNT_ID`: [required]
-* `AWS_PROFILE`: [required]
 * `SOURCE_SCHEMA`: [required]
 * `TARGET_SCHEMA`: [required]
 
 **Options**:
 
+* `--aws-profile TEXT`
 * `--dataset-id TEXT`
 * `--no-prompt / --no-no-prompt`: [default: no-no-prompt]
 * `--dry-run / --no-dry-run`: [default: no-dry-run]
 * `--install-completion`: Install completion for the current shell.
 * `--show-completion`: Show completion for the current shell, to copy it or customize the installation.
-* `--help`: Show this message and exit.
+* `--help`: Show help and exit.
 
 
 ## Contributing

@@ -70,13 +70,11 @@ If you are a member the uktrade GitHub organisation, you should:
    cd quicksight-bulk-update-datasets
    ```
 
-
 ### Install in editable mode
 
 ```bash
 pip install -e .
 ```
-
 
 ### Become familiar with relevant API docs
 
@@ -84,6 +82,14 @@ pip install -e .
 - [Typer cheatsheet](https://gist.github.com/harkabeeparolus/a6e18b1f4f4f938f450090c5e7523f68)
 - [Boto3 Quicksight](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/quicksight.html)
 
+### Generating docs
+
+```bash
+pip install typer-cli
+typer quicksight_bulk_update_datasets.py utils docs --name quicksight-bulk-update-datasets --output docs.md
+```
+
+Then manually copy and tweaking the docs from docs.md to the Usage section in README.md.
 
 ---
 

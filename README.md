@@ -13,7 +13,7 @@ pip install quicksight-bulk-update-datasets
 ```
 
 
-# Usage
+## Usage
 
 ```shell
 quicksight-bulk-update-datasets [OPTIONS] ACCOUNT_ID SOURCE_SCHEMA TARGET_SCHEMA

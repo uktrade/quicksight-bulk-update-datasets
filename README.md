@@ -2,6 +2,8 @@
 
 Makes bulk updates to Quicksight datasets.
 
+![Screencast of quicksight-bulk-update-datasets](./screencast.svg)
+
 > [!NOTE]
 > The only bulk update currently supported is a rename of table schema
 

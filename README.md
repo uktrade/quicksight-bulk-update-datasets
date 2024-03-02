@@ -48,6 +48,13 @@ To contribute you'll need:
 - [Python](https://www.python.org/downloads/) installed
 - A text editor or integrated development environment (IDE), for example [VS Code](https://code.visualstudio.com/)
 
+You may also need to refer to the following as you're making changes:
+
+- [Typer docs](https://typer.tiangolo.com/)
+- [Typer cheatsheet](https://gist.github.com/harkabeeparolus/a6e18b1f4f4f938f450090c5e7523f68)
+- [Boto3 Quicksight](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/quicksight.html)
+
+
 ### Get the code
 
 If you're not a member of the uktrade GitHub organisation, you should:
@@ -75,12 +82,6 @@ If you are a member the uktrade GitHub organisation, you should:
 ```bash
 pip install -e .
 ```
-
-### Become familiar with relevant API docs
-
-- [Typer docs](https://typer.tiangolo.com/)
-- [Typer cheatsheet](https://gist.github.com/harkabeeparolus/a6e18b1f4f4f938f450090c5e7523f68)
-- [Boto3 Quicksight](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/quicksight.html)
 
 ### Generating docs
 

@@ -127,7 +127,7 @@ def rename_schema(
             if node_dict.get("@", None) == "RangeVar" and (
                 node_dict["schemaname"] is not None or node_dict["relname"] not in ctenames
             ):
-                if node.schemaname == source:
+                if (node.schemaname or "public") == source:
                     node.schemaname = target
 
             for node_type in node:

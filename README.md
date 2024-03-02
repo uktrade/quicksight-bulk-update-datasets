@@ -8,20 +8,32 @@ Makes bulk updates to Quicksight datasets.
 
 ## Installation
 
-```shell
+```bash
 pip install quicksight-bulk-update-datasets
 ```
 
 
 ## Usage
 
-See the source in [quicksight_bulk_update_datasets.py](https://github.com/uktrade/quicksight-bulk-update-datasets/blob/main/quicksight_bulk_update_datasets.py), or after installation run
-
-```shell
-quicksight-bulk-update-datasets --help
+```bash
+quicksight-bulk-update-datasets [OPTIONS] ACCOUNT_ID AWS_PROFILE SOURCE_SCHEMA TARGET_SCHEMA
 ```
 
-to see some brief guidance.
+**Arguments**:
+
+* `ACCOUNT_ID`: [required]
+* `AWS_PROFILE`: [required]
+* `SOURCE_SCHEMA`: [required]
+* `TARGET_SCHEMA`: [required]
+
+**Options**:
+
+* `--dataset-id TEXT`
+* `--no-prompt / --no-no-prompt`: [default: no-no-prompt]
+* `--dry-run / --no-dry-run`: [default: no-dry-run]
+* `--install-completion`: Install completion for the current shell.
+* `--show-completion`: Show completion for the current shell, to copy it or customize the installation.
+* `--help`: Show this message and exit.
 
 
 ## Contributing
@@ -44,7 +56,7 @@ If you're not a member of the uktrade GitHub organisation, you should:
 
 2. Clone the fork by running the following, replacing `my-username-or-org` with the username or organisation name you forked to:
 
-   ```shell
+   ```bash
    git clone git@github.com:my-username-or-org/quicksight-bulk-update-datasets.git
    cd quicksight-bulk-update-datasets.
    ```
@@ -53,7 +65,7 @@ If you are a member the uktrade GitHub organisation, you should:
 
 1. Clone this repo directly:
 
-   ```shell
+   ```bash
    git clone git@github.com:uktrade/quicksight-bulk-update-datasets.git
    cd quicksight-bulk-update-datasets
    ```
@@ -61,7 +73,7 @@ If you are a member the uktrade GitHub organisation, you should:
 
 ### Install in editable mode
 
-```shell
+```bash
 pip install -e .
 ```
 

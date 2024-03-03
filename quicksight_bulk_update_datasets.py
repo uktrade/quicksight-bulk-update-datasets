@@ -233,38 +233,30 @@ def rename_schema(
         for dataset in datasets(client, dataset_ids):
 
             dataset_changes = tuple(modify_dataset_dict_if_needed(progress, dataset))
-            if not dataset_changes:
-                progress.advance(task)
-                continue
-
-            updated += 1
 
             for dataset_change in dataset_changes:
                 writer.writerow(dataset_change)
 
-            if dry_run:
-                progress.advance(task)
-                progress.update(task, updated=updated)
-                continue
+            if dataset_changes and not dry_run:
+                if not no_prompt:
+                    input("Press enter to update the dataset on Quicksight")
 
-            if not no_prompt:
-                input("Press enter to update the dataset on Quicksight")
+                client.update_data_set(
+                    AwsAccountId=account_id,
+                    **{
+                        x: v
+                        for x, v in dataset.items()
+                        if x
+                        not in [
+                            "Arn",
+                            "CreatedTime",
+                            "LastUpdatedTime",
+                            "OutputColumns",
+                            "ConsumedSpiceCapacityInBytes",
+                        ]
+                    },
+                )
 
-            client.update_data_set(
-                AwsAccountId=account_id,
-                **{
-                    x: v
-                    for x, v in dataset.items()
-                    if x
-                    not in [
-                        "Arn",
-                        "CreatedTime",
-                        "LastUpdatedTime",
-                        "OutputColumns",
-                        "ConsumedSpiceCapacityInBytes",
-                    ]
-                },
-            )
-
+            updated += 1 if dataset_changes else 0
             progress.advance(task)
             progress.update(task, updated=updated)

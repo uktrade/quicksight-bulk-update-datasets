@@ -102,6 +102,49 @@ typer quicksight_bulk_update_datasets.py utils docs --name quicksight-bulk-updat
 
 Then manually copy and tweaking the docs from docs.md to the Usage section in README.md.
 
+### Recording a new screencast
+
+There is usually a fair bit of trial and error involved in recording a new screencast. The existing screencast was recorded using [iTerm2](https://iterm2.com/) so you probably should do the same to avoid extra issues and for the following instructions to be as applicable as possible.
+
+- Install [asciinema](https://asciinema.org/) and [svg-term-cli](https://github.com/marionebl/svg-term-cli), and download [iTerm2 Dark Background.itermcolors](https://github.com/mbadolato/iTerm2-Color-Schemes/tree/master/schemes) to the current directory.
+
+- Temporarily modify the code to fetch fewer datasets and to rename any tables using (for example) [Docker's random name generator](https://github.com/moby/moby/blob/master/pkg/namesgenerator/names-generator.go), and hard code the real account ID and profile name.
+
+- Construct and test a command line with a fake account ID and profile in a text editor ready to paste at the start of a recording. If going over multiple lines, output is usually better if it's pre-split with the `\` continuation operator.
+
+   ```bash
+   quicksight-bulk-update-datasets --account-id=123456789012 --aws-profile=my-profile \
+       --source-schema dit --target-schema dbt --no-prompt --dry-run
+   ```
+
+  When testing set your terminal width to be as thin as possible where the output still looks good, e.g. without extra wrapping.
+
+- Edit your `~/.zshrc` file (or corresponding file for your shell) to make a simple prompt, and unset highlighting after prompting if necessary.
+
+   ```bash
+   PROMPT='$ '
+   unset zle_bracketed_paste
+   ```
+
+- Start recording.
+ 
+  ```bash
+  asciinema rec screencast.cast
+  ```
+
+- Paste in your pre-prepared command, wait a second or so, and hit enter to run it.
+
+- When it's done, wait a few seconds and press CTRL+D. The few seconds is so at the end of the screencast the final output remains on screen for a few seconds, before it auto replays from the beginning.
+
+- Convert to SVG.
+
+   ```bash
+   svg-term --in screencast.cast --out screencast.svg --window --term iterm2 \
+       --profile "./iTerm2 Dark Background.itermcolors" --height 17 --width 92
+   ```
+
+   The height and width should be set as small as possible, but not so small it results strange effects at the edges, such as truncated characters or bleed through from one side of the image to the other.
+
 ---
 
 ## Releasing

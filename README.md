@@ -4,8 +4,16 @@ Makes bulk updates to Quicksight datasets.
 
 ![Screencast of quicksight-bulk-update-datasets](./screencast.svg)
 
+
+## Features
+
 > [!NOTE]
-> The only bulk update currently supported is a rename of table schema
+> The only bulk update currently supported is a rename of table schema for PostgreSQL-based datasources
+
+- Renames the schema in RelationalTable and CustomSQL tables in Amazon Quicksight datasets
+- CustomSQL is parsed with [pglast](https://github.com/lelit/pglast) to robustly change the schema
+- Outputs a CSV report of the changes made
+- Has a dry-run mode
 
 
 ## Installation

@@ -127,7 +127,7 @@ There is usually a fair bit of trial and error involved in recording a new scree
    ```
 
 - Start recording.
- 
+
   ```bash
   asciinema rec screencast.cast
   ```

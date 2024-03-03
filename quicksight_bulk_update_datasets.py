@@ -221,6 +221,7 @@ def rename_schema(
     with \
             csv_output_report() as writer, \
             Progress(
+                SpinnerColumn(finished_text='[green]✔'),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 MofNCompleteColumn(),

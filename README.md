@@ -143,7 +143,7 @@ There is usually a fair bit of trial and error involved in recording a new scree
        --profile "./iTerm2 Dark Background.itermcolors" --height 17 --width 92
    ```
 
-   The height and width should be set as small as possible, but not so small it results strange effects at the edges, such as truncated characters or bleed through from one side of the image to the other.
+   The height and width should be set as small as possible, but not so small it results in strange effects at the edges, such as truncated characters or bleed through from one side of the image to the other.
 
 ---
 

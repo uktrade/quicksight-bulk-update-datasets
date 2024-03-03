@@ -12,13 +12,13 @@
 import csv
 import datetime
 from collections import deque
+from contextlib import contextmanager
 from typing_extensions import Annotated
 
 import boto3
 import pglast
 import pglast.stream
 import typer
-from rich.console import Console
 from rich.progress import MofNCompleteColumn, BarColumn, SpinnerColumn, TextColumn, TimeRemainingColumn, Progress
 from botocore.exceptions import ClientError
 
@@ -39,7 +39,19 @@ def rename_schema(
     Update datasets that refer to the source schema to use the target schema
     """
 
-    def datasets(dataset_ids):
+    def all_dataset_ids(client):
+        with Progress(SpinnerColumn(finished_text='[green]✔'), TextColumn("{task.description}")) as progress:
+            task = progress.add_task("Finding all datasets...", total=1)
+
+            dataset_ids = tuple(
+                dataset_summary['DataSetId']
+                for page in client.get_paginator("list_data_sets").paginate(AwsAccountId=account_id)
+                for dataset_summary in page.get("DataSetSummaries", [])
+            )
+            progress.update(task, advance=1, description=f'Finding all datasets... done: [bold]{len(dataset_ids)}')
+            return dataset_ids
+
+    def datasets(client, dataset_ids):
         for _dataset_id in dataset_ids:
             try:
                 response = client.describe_data_set(
@@ -51,6 +63,18 @@ def rename_schema(
                 continue
 
             yield response["DataSet"]
+
+    @contextmanager
+    def csv_output_report():
+        timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        filename = f"{timestamp}--{account_id}{'--dry-run' if dry_run else ''}.csv"
+
+        with open(filename, 'w', newline='') as f:
+            fieldnames = ['dataset_id', 'dataset_link', 'physical_table_id', 'type', 'source', 'target']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            yield writer
 
     def tables_from_query(query):
         statements = pglast.parse_sql(query)
@@ -137,30 +161,68 @@ def rename_schema(
             comma_at_eoln=True,
         )(statements[0])
 
-    console = Console()
+    def modify_dataset_dict_if_needed(progress, dataset):
+        for physical_table_id, physical_table in dataset.get("PhysicalTableMap", {}).items():
+            dataset_link = f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
+            if "RelationalTable" in physical_table:
+                table = physical_table["RelationalTable"]
+                if table["Schema"] == source_schema:
+                    progress.console.print(
+                        f"RelationalTable: {[(table['Schema'], table['Name'])]} ➜ {[(target_schema, table['Name'])]} "
+                    )
+                    table["Schema"] = target_schema
+                    yield {
+                        'dataset_id': dataset['DataSetId'],
+                        'dataset_link': dataset_link,
+                        'physical_table_id': physical_table_id,
+                        'type': 'table',
+                        'source': source_schema,
+                        'target': target_schema,
+                    }
+            if "CustomSql" in physical_table:
+                original_sql = physical_table["CustomSql"]["SqlQuery"]
+                try:
+                    tables = tables_from_query(physical_table["CustomSql"]["SqlQuery"])
+                except:
+                    progress.console.print(f"Unable to parse query in {dataset['DataSetId']}")
+                    progress.console.print(original_sql)
+                    progress.advance(task)
+                    continue
+                if any(schema == source_schema for schema, table in tables):
+                    renamed_sql = rename_schema(original_sql, source_schema, target_schema)
+                    new_tables = tables_from_query(renamed_sql)
+                    progress.console.print(
+                        f"CustomSql: {tables} ➜ {new_tables} "
+                    )
+                    no_original = any(schema == source_schema for schema, table in new_tables) == False
+                    any_target = any(schema == target_schema for schema, table in new_tables) == True
+                    original_tables_to_be_unchanged = set((schema, table) for schema, table in tables if schema not in (source_schema, target_schema))
+                    new_tables_to_be_unchanged = set((schema, table) for schema, table in new_tables if schema not in (source_schema, target_schema))
+                    assert no_original
+                    assert any_target
+                    assert original_tables_to_be_unchanged == new_tables_to_be_unchanged
+                    physical_table["CustomSql"]["SqlQuery"] = renamed_sql
+                    yield {
+                        'dataset_id': dataset['DataSetId'],
+                        'dataset_link': dataset_link,
+                        'physical_table_id': physical_table_id,
+                        'type': 'sql',
+                        'source': original_sql,
+                        'target': rename_schema(original_sql, source_schema, target_schema),
+                    }
+
     session_opts = {'profile_name': aws_profile} if aws_profile is not None else {}
     session = boto3.Session(**session_opts)
     client = session.client("quicksight")
 
-    if dataset_id is not None:
-        dataset_ids = (dataset_id,)
-    else:
-        with Progress(SpinnerColumn(finished_text='[green]✔'), TextColumn("{task.description}")) as progress:
-            task = progress.add_task("Finding all datasets...", total=1)
+    dataset_ids = \
+        (dataset_id,) if dataset_id is not None else \
+        all_dataset_ids(client)
 
-            dataset_ids = tuple(
-                dataset_summary['DataSetId']
-                for page in client.get_paginator("list_data_sets").paginate(AwsAccountId=account_id)
-                for dataset_summary in page.get("DataSetSummaries", [])
-            )
-            progress.update(task, advance=1, description=f'Finding all datasets... done: [bold]{len(dataset_ids)}')
-
-    timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    filename = f"{timestamp}--{account_id}{'--dry-run' if dry_run else ''}.csv"
     updated = 0
 
     with \
-            open(filename, 'w', newline='') as f, \
+            csv_output_report() as writer, \
             Progress(
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
@@ -169,75 +231,28 @@ def rename_schema(
                 TimeRemainingColumn(),
             ) as progress:
 
-        fieldnames = ['dataset_id', 'dataset_link', 'physical_table_id', 'type', 'source', 'target']
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-
         task = progress.add_task(("[green]\\[DRY RUN][/green] " if dry_run else "") + 'Updating datasets...', total=len(dataset_ids), updated=0)
-        for dataset in datasets(dataset_ids):
-            dataset_changes = []
+        
+        for dataset in datasets(client, dataset_ids):
 
-            for physical_table_id, physical_table in dataset.get("PhysicalTableMap", {}).items():
-                dataset_link = f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
-                if "RelationalTable" in physical_table:
-                    table = physical_table["RelationalTable"]
-                    if table["Schema"] == source_schema:
-                        progress.console.print(
-                            f"RelationalTable: {[(table['Schema'], table['Name'])]} ➜ {[(target_schema, table['Name'])]} "
-                        )
-                        table["Schema"] = target_schema
-                        dataset_changes.append({
-                            'dataset_id': dataset['DataSetId'],
-                            'dataset_link': dataset_link,
-                            'physical_table_id': physical_table_id,
-                            'type': 'table',
-                            'source': source_schema,
-                            'target': target_schema,
-                        })
-                if "CustomSql" in physical_table:
-                    original_sql = physical_table["CustomSql"]["SqlQuery"]
-                    try:
-                        tables = tables_from_query(physical_table["CustomSql"]["SqlQuery"])
-                    except:
-                        progress.console.print(f"Unable to parse query in {dataset['DataSetId']}")
-                        progress.console.print(original_sql)
-                        progress.advance(task)
-                        continue
-                    if any(schema == source_schema for schema, table in tables):
-                        renamed_sql = rename_schema(original_sql, source_schema, target_schema)
-                        new_tables = tables_from_query(renamed_sql)
-                        progress.console.print(
-                            f"CustomSql: {tables} ➜ {new_tables} "
-                        )
-                        no_original = any(schema == source_schema for schema, table in new_tables) == False
-                        any_target = any(schema == target_schema for schema, table in new_tables) == True
-                        original_tables_to_be_unchanged = set((schema, table) for schema, table in tables if schema not in (source_schema, target_schema))
-                        new_tables_to_be_unchanged = set((schema, table) for schema, table in new_tables if schema not in (source_schema, target_schema))
-                        assert no_original
-                        assert any_target
-                        assert original_tables_to_be_unchanged == new_tables_to_be_unchanged
-                        physical_table["CustomSql"]["SqlQuery"] = renamed_sql
-                        dataset_changes.append({
-                            'dataset_id': dataset['DataSetId'],
-                            'dataset_link': dataset_link,
-                            'physical_table_id': physical_table_id,
-                            'type': 'sql',
-                            'source': original_sql,
-                            'target': rename_schema(original_sql, source_schema, target_schema),
-                        })
-
+            dataset_changes = tuple(modify_dataset_dict_if_needed(progress, dataset))
             if not dataset_changes:
                 progress.advance(task)
                 continue
+
             updated += 1
+
             for dataset_change in dataset_changes:
                 writer.writerow(dataset_change)
+
             if dry_run:
                 progress.advance(task)
                 progress.update(task, updated=updated)
                 continue
+
             if not no_prompt:
                 input("Press enter to update the dataset on Quicksight")
+
             client.update_data_set(
                 AwsAccountId=account_id,
                 **{
@@ -253,5 +268,6 @@ def rename_schema(
                     ]
                 },
             )
+
             progress.advance(task)
             progress.update(task, updated=updated)

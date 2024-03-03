@@ -2,7 +2,7 @@
 
 Makes bulk updates to Quicksight datasets.
 
-![Screencast of quicksight-bulk-update-datasets](./screencast.svg)
+![Screencast of quicksight-bulk-update-datasets](https://raw.githubusercontent.com/uktrade/quicksight-bulk-update-datasets/main/screencast.svg)
 
 
 ## Features

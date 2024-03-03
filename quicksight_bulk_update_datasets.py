@@ -19,7 +19,9 @@ import boto3
 import pglast
 import pglast.stream
 import typer
+from rich.highlighter import ReprHighlighter
 from rich.progress import MofNCompleteColumn, BarColumn, SpinnerColumn, TextColumn, TimeRemainingColumn, Progress
+from rich.table import Table
 from botocore.exceptions import ClientError
 
 app = typer.Typer()
@@ -167,9 +169,11 @@ def rename_schema(
             if "RelationalTable" in physical_table:
                 table = physical_table["RelationalTable"]
                 if table["Schema"] == source_schema:
-                    console.print(
-                        f"[green]✔[/green] RelationalTable: {[(table['Schema'], table['Name'])]} ➜ {[(target_schema, table['Name'])]}"
-                    )
+                    grid = Table.grid(padding=(0, 1))
+                    grid.add_column(justify="left")
+                    grid.add_column(justify="left")
+                    grid.add_row(f"[green]✔[/green] RelationalTable", ReprHighlighter()(f"{(table['Schema'], table['Name'])} ➜ {(target_schema, table['Name'])}"))
+                    console.print(grid, highlight=True)
                     table["Schema"] = target_schema
                     yield {
                         'dataset_id': dataset['DataSetId'],
@@ -190,7 +194,16 @@ def rename_schema(
                 if any(schema == source_schema for schema, table in tables):
                     renamed_sql = rename_schema(original_sql, source_schema, target_schema)
                     new_tables = tables_from_query(renamed_sql)
-                    console.print(f"[green]✔[/green] CustomSql: {tables} ➜ {new_tables}")
+                    grid = Table.grid(padding=(0, 1))
+                    grid.add_column(justify="left")
+                    grid.add_column(justify="left")
+                    innerGrid = Table.grid(padding=(0, 1))
+                    innerGrid.add_column(justify="left")
+                    innerGrid.add_column(justify="left")
+                    for old, new in zip(tables, new_tables):
+                        innerGrid.add_row(ReprHighlighter()(f'{old}'), '➜', ReprHighlighter()(f'{new}'))
+                    grid.add_row(f"[green]✔[/green] CustomSql      ", innerGrid)
+                    console.print(grid, highlight=True)
                     no_original = any(schema == source_schema for schema, table in new_tables) == False
                     any_target = any(schema == target_schema for schema, table in new_tables) == True
                     original_tables_to_be_unchanged = set((schema, table) for schema, table in tables if schema not in (source_schema, target_schema))

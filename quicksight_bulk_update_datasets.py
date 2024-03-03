@@ -51,7 +51,7 @@ def rename_schema(
             progress.update(task, advance=1, description=f'Finding all datasets... done: [bold]{len(dataset_ids)}')
             return dataset_ids
 
-    def datasets(client, dataset_ids):
+    def datasets(client, console, dataset_ids):
         for _dataset_id in dataset_ids:
             try:
                 response = client.describe_data_set(
@@ -59,7 +59,7 @@ def rename_schema(
                 )
             except ClientError as ex:
                 # Some datasets cannot be described in the API, e.g. manual uploads
-                print(f"Error fetching detail for dataset {_dataset_id}: {ex.response['Error']['Message']}")
+                console.print(f"⚠️  Error fetching detail for dataset {_dataset_id}: {ex.response['Error']['Message']}")
                 continue
 
             yield response["DataSet"]
@@ -168,7 +168,7 @@ def rename_schema(
                 table = physical_table["RelationalTable"]
                 if table["Schema"] == source_schema:
                     console.print(
-                        f"RelationalTable: {[(table['Schema'], table['Name'])]} ➜ {[(target_schema, table['Name'])]}"
+                        f"[green]✔[/green] RelationalTable: {[(table['Schema'], table['Name'])]} ➜ {[(target_schema, table['Name'])]}"
                     )
                     table["Schema"] = target_schema
                     yield {
@@ -184,13 +184,13 @@ def rename_schema(
                 try:
                     tables = tables_from_query(physical_table["CustomSql"]["SqlQuery"])
                 except:
-                    console.print(f"Unable to parse query in {dataset['DataSetId']}")
+                    console.print(f"⚠️  Unable to parse query in {dataset['DataSetId']}")
                     console.print(original_sql)
                     continue
                 if any(schema == source_schema for schema, table in tables):
                     renamed_sql = rename_schema(original_sql, source_schema, target_schema)
                     new_tables = tables_from_query(renamed_sql)
-                    console.print(f"CustomSql: {tables} ➜ {new_tables}")
+                    console.print(f"[green]✔[/green] CustomSql: {tables} ➜ {new_tables}")
                     no_original = any(schema == source_schema for schema, table in new_tables) == False
                     any_target = any(schema == target_schema for schema, table in new_tables) == True
                     original_tables_to_be_unchanged = set((schema, table) for schema, table in tables if schema not in (source_schema, target_schema))
@@ -230,9 +230,9 @@ def rename_schema(
 
         task = progress.add_task(("[green]\\[DRY RUN][/green] " if dry_run else "") + 'Updating datasets...', total=len(dataset_ids), updated=0)
         
-        for dataset in datasets(client, dataset_ids):
+        for dataset in datasets(client, progress.console, dataset_ids):
 
-            dataset_changes = tuple(modify_dataset_dict_if_needed(progress, dataset))
+            dataset_changes = tuple(modify_dataset_dict_if_needed(progress.console, dataset))
 
             for dataset_change in dataset_changes:
                 writer.writerow(dataset_change)

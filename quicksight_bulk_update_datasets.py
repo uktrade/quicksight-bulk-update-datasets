@@ -161,14 +161,14 @@ def rename_schema(
             comma_at_eoln=True,
         )(statements[0])
 
-    def modify_dataset_dict_if_needed(progress, dataset):
+    def modify_dataset_dict_if_needed(console, dataset):
         for physical_table_id, physical_table in dataset.get("PhysicalTableMap", {}).items():
             dataset_link = f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
             if "RelationalTable" in physical_table:
                 table = physical_table["RelationalTable"]
                 if table["Schema"] == source_schema:
-                    progress.console.print(
-                        f"RelationalTable: {[(table['Schema'], table['Name'])]} ➜ {[(target_schema, table['Name'])]} "
+                    console.print(
+                        f"RelationalTable: {[(table['Schema'], table['Name'])]} ➜ {[(target_schema, table['Name'])]}"
                     )
                     table["Schema"] = target_schema
                     yield {
@@ -184,16 +184,13 @@ def rename_schema(
                 try:
                     tables = tables_from_query(physical_table["CustomSql"]["SqlQuery"])
                 except:
-                    progress.console.print(f"Unable to parse query in {dataset['DataSetId']}")
-                    progress.console.print(original_sql)
-                    progress.advance(task)
+                    console.print(f"Unable to parse query in {dataset['DataSetId']}")
+                    console.print(original_sql)
                     continue
                 if any(schema == source_schema for schema, table in tables):
                     renamed_sql = rename_schema(original_sql, source_schema, target_schema)
                     new_tables = tables_from_query(renamed_sql)
-                    progress.console.print(
-                        f"CustomSql: {tables} ➜ {new_tables} "
-                    )
+                    console.print(f"CustomSql: {tables} ➜ {new_tables}")
                     no_original = any(schema == source_schema for schema, table in new_tables) == False
                     any_target = any(schema == target_schema for schema, table in new_tables) == True
                     original_tables_to_be_unchanged = set((schema, table) for schema, table in tables if schema not in (source_schema, target_schema))

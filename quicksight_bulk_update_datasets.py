@@ -72,7 +72,7 @@ def rename_schema(
         filename = f"{timestamp}--{account_id}{'--dry-run' if dry_run else ''}.csv"
 
         with open(filename, 'w', newline='') as f:
-            fieldnames = ['dataset_id', 'dataset_link', 'physical_table_id', 'type', 'source', 'target']
+            fieldnames = ['dataset_id', 'dataset_link', 'physical_table_id', 'type', 'source', 'target', 'error']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
 
@@ -182,14 +182,23 @@ def rename_schema(
                         'type': 'table',
                         'source': source_schema,
                         'target': target_schema,
+                        'error': '',
                     }
             if "CustomSql" in physical_table:
                 original_sql = physical_table["CustomSql"]["SqlQuery"]
                 try:
                     tables = tables_from_query(physical_table["CustomSql"]["SqlQuery"])
-                except:
+                except Exception as e:
                     console.print(f"⚠️  Unable to parse query in {dataset['DataSetId']}")
-                    console.print(original_sql)
+                    yield {
+                        'dataset_id': dataset['DataSetId'],
+                        'dataset_link': dataset_link,
+                        'physical_table_id': physical_table_id,
+                        'type': 'sql',
+                        'source': original_sql,
+                        'target': '',
+                        'error': f'Unable to parse query: {e}',
+                    }
                     continue
                 if any(schema == source_schema for schema, table in tables):
                     renamed_sql = rename_schema(original_sql, source_schema, target_schema)
@@ -219,6 +228,7 @@ def rename_schema(
                         'type': 'sql',
                         'source': original_sql,
                         'target': rename_schema(original_sql, source_schema, target_schema),
+                        'error': '',
                     }
 
     session_opts = {'profile_name': aws_profile} if aws_profile is not None else {}
@@ -251,7 +261,9 @@ def rename_schema(
             for dataset_change in dataset_changes:
                 writer.writerow(dataset_change)
 
-            if dataset_changes and not dry_run:
+            non_errored_changes = [not dataset_change['error'] for dataset_change in dataset_changes]
+
+            if non_errored_changes and not dry_run:
                 if not no_prompt:
                     input("Press enter to update the dataset on Quicksight")
 
@@ -271,6 +283,6 @@ def rename_schema(
                     },
                 )
 
-            updated += 1 if dataset_changes else 0
+            updated += 1 if non_errored_changes else 0
             progress.advance(task)
             progress.update(task, updated=updated)

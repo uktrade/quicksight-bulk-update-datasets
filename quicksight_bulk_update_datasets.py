@@ -78,6 +78,18 @@ def rename_schema(
 
             yield writer
 
+    @contextmanager
+    def csv_error_report():
+        timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        filename = f"{timestamp}--{account_id}{'--dry-run' if dry_run else ''}--errors.csv"
+
+        with open(filename, 'w', newline='') as f:
+            fieldnames = ['dataset_id', 'dataset_link', 'physical_table_id', 'type', 'source', 'error']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            yield writer
+
     def tables_from_query(query):
         statements = pglast.parse_sql(query)
 
@@ -163,7 +175,7 @@ def rename_schema(
             comma_at_eoln=True,
         )(statements[0])
 
-    def modify_dataset_dict_if_needed(console, dataset):
+    def modify_dataset_dict_if_needed(console, dataset, error_writer):
         for physical_table_id, physical_table in dataset.get("PhysicalTableMap", {}).items():
             dataset_link = f"https://eu-west-2.quicksight.aws.amazon.com/sn/data-sets/{dataset['DataSetId']}"
             if "RelationalTable" in physical_table:
@@ -190,6 +202,14 @@ def rename_schema(
                 except:
                     console.print(f"⚠️  Unable to parse query in {dataset['DataSetId']}")
                     console.print(original_sql)
+                    error_writer.writerow({
+                        'dataset_id': dataset['DataSetId'],
+                        'dataset_link': dataset_link,
+                        'physical_table': physical_table_id,
+                        'type': 'sql',
+                        'source': original_sql,
+                        'error': 'Unable to parse query',
+                    })
                     continue
                 if any(schema == source_schema for schema, table in tables):
                     renamed_sql = rename_schema(original_sql, source_schema, target_schema)
@@ -233,6 +253,7 @@ def rename_schema(
 
     with \
             csv_output_report() as writer, \
+            csv_error_report() as error_writer, \
             Progress(
                 SpinnerColumn(finished_text='[green]✔'),
                 TextColumn("[progress.description]{task.description}"),
@@ -246,7 +267,7 @@ def rename_schema(
         
         for dataset in datasets(client, progress.console, dataset_ids):
 
-            dataset_changes = tuple(modify_dataset_dict_if_needed(progress.console, dataset))
+            dataset_changes = tuple(modify_dataset_dict_if_needed(progress.console, dataset, error_writer))
 
             for dataset_change in dataset_changes:
                 writer.writerow(dataset_change)

@@ -149,6 +149,11 @@ def rename_schema(
                 node_dict["schemaname"] is not None or node_dict["relname"] not in ctenames
             ) and (node.schemaname or "public") == source:
                 node.schemaname = target
+            if (node_dict.get("@", None) == "ColumnRef" and
+                len(node.fields) == 3 and
+                node.fields[0].sval == source
+            ):
+                node.fields[0].sval = target
 
             for node_type in node:
                 node_value = getattr(node, node_type)

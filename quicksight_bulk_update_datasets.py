@@ -286,7 +286,7 @@ def rename_schema(
                         },
                     )
                 except Exception as e:
-                    console.print(f"⚠️  Failed to update dataset: {e}")
+                    progress.console.print(f"⚠️  Failed to update dataset: {e}")
                     for dataset_change in dataset_changes:
                         dataset_change['error'] = f'Failed to update dataset: {e}'
 

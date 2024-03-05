@@ -263,31 +263,38 @@ def rename_schema(
 
             dataset_changes = tuple(modify_dataset_dict_if_needed(progress.console, dataset))
 
-            for dataset_change in dataset_changes:
-                writer.writerow(dataset_change)
-
             non_errored_changes = [not dataset_change['error'] for dataset_change in dataset_changes]
 
             if non_errored_changes and not dry_run:
                 if not no_prompt:
                     input("Press enter to update the dataset on Quicksight")
 
-                client.update_data_set(
-                    AwsAccountId=account_id,
-                    **{
-                        x: v
-                        for x, v in dataset.items()
-                        if x
-                        not in [
-                            "Arn",
-                            "CreatedTime",
-                            "LastUpdatedTime",
-                            "OutputColumns",
-                            "ConsumedSpiceCapacityInBytes",
-                        ]
-                    },
-                )
+                try:
+                    client.update_data_set(
+                        AwsAccountId=account_id,
+                        **{
+                            x: v
+                            for x, v in dataset.items()
+                            if x
+                            not in [
+                                "Arn",
+                                "CreatedTime",
+                                "LastUpdatedTime",
+                                "OutputColumns",
+                                "ConsumedSpiceCapacityInBytes",
+                            ]
+                        },
+                    )
+                except Exception as e:
+                    console.print(f"⚠️  Failed to update dataset: {e}")
+                    for dataset_change in dataset_changes:
+                        dataset_change['error'] = f'Failed to update dataset: {e}'
 
-            updated += 1 if non_errored_changes else 0
+            for dataset_change in dataset_changes:
+                writer.writerow(dataset_change)
+
+            non_errored_changes_post_update = [not dataset_change['error'] for dataset_change in dataset_changes]
+
+            updated += 1 if non_errored_changes_post_update else 0
             progress.advance(task)
             progress.update(task, updated=updated)

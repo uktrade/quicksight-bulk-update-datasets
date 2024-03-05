@@ -90,7 +90,7 @@ If you are a member the uktrade GitHub organisation, you should:
 ### Install in editable mode
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 ### Generating docs

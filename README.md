@@ -1,5 +1,7 @@
 # quicksight-bulk-update-datasets
 
+[![PyPI package](https://img.shields.io/pypi/v/quicksight-bulk-update-datasets?label=PyPI%20package)](https://pypi.org/project/quicksight-bulk-update-datasets/) [![Test suite](https://img.shields.io/github/actions/workflow/status/uktrade/quicksight-bulk-update-datasets/test.yml?label=Test%20suite)](https://github.com/uktrade/quicksight-bulk-update-datasets/actions/workflows/test.yml) [![Code coverage](https://img.shields.io/codecov/c/github/uktrade/quicksight-bulk-update-datasets?label=Code%20coverage)](https://app.codecov.io/gh/uktrade/quicksight-bulk-update-datasets)
+
 Makes bulk updates to Quicksight datasets.
 
 ![Screencast of quicksight-bulk-update-datasets](https://raw.githubusercontent.com/uktrade/quicksight-bulk-update-datasets/main/screencast.svg)

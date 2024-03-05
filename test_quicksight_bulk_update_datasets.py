@@ -41,8 +41,10 @@ def test_rename_schema_no_updates(quicksight_stubber):
     quicksight_stubber.add_response('describe_data_set', response)
 
     result = runner.invoke(app, ["--account-id", "123456789012", "--source-schema", "dit", "--target-schema", "dbt"])
-    quicksight_stubber.assert_no_pending_responses()
+
+    assert result.exception is None
     assert result.exit_code == 0
+    quicksight_stubber.assert_no_pending_responses()
 
 
 def test_rename_schema_custom_sql(quicksight_stubber):
@@ -63,7 +65,7 @@ def test_rename_schema_custom_sql(quicksight_stubber):
                     'CustomSql': {
                         'Name': 'My SQL',
                         'DataSourceArn': 'any',
-                        'SqlQuery': 'SELECT * FROM dit.my_table',
+                        'SqlQuery': 'SELECT a, dit.my_table.* FROM dit.my_table, another.table',
                     },
                 },
             },
@@ -81,7 +83,7 @@ def test_rename_schema_custom_sql(quicksight_stubber):
                 'CustomSql': {
                     'Name': 'My SQL',
                     'DataSourceArn': 'any',
-                    'SqlQuery': 'SELECT *\nFROM dbt.my_table',
+                    'SqlQuery': 'SELECT a,\n       dbt.my_table.*\nFROM dbt.my_table, another."table"',
                 },
             },
         },
@@ -94,5 +96,7 @@ def test_rename_schema_custom_sql(quicksight_stubber):
     quicksight_stubber.add_response('update_data_set', response, request)
 
     result = runner.invoke(app, ["--account-id", "123456789012", "--source-schema", "dit", "--target-schema", "dbt", "--no-prompt"])
-    quicksight_stubber.assert_no_pending_responses()
+
+    assert result.exception is None
     assert result.exit_code == 0
+    quicksight_stubber.assert_no_pending_responses()
